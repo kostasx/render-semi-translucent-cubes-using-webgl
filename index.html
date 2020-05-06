@@ -41,13 +41,29 @@
 	<form>
         <input type="text" pattern="[0-9\[\],]+" required placeholder="e.g. [ [0,0,0], [3,0,0] ]">
         <button>Build</button>
+        <label for="colors">Select Color</label>
+        <select id="colors">
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+        </select>
     </form>
+
+    
 
     <script src="js/ThreeCanvas.js"></script>
     <script src="js/Cube.js"></script>
     <script src="js/Plane.js"></script>
     <script>
 		const form = document.querySelector("form");
+        const colorSelector = document.querySelector("select");
 		const input = document.querySelector("input[type='text']");
         let transparency = 0.4;
         let container, interval, camera, scene, renderer,
@@ -303,6 +319,10 @@
         input.addEventListener("blur", e =>{
             isFocus = false;
         });
+
+        colorSelector.addEventListener("change", (e)=>{
+            color = e.currentTarget.value;
+        })
 
         init();
         render();
