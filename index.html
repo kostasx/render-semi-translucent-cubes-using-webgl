@@ -1,0 +1,308 @@
+<!DOCTYPE HTML>
+<html lang="en">
+
+<head>
+    <title>Voxels</title>
+    <meta charset="utf-8">
+    <style type="text/css">
+        body {
+            font-family: Monospace;
+            font-size: 12px;
+            background-color: #f0f0f0;
+            margin: 0px;
+            overflow: hidden;
+        }
+    </style>
+    <style>
+        form {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100000 !important;
+        }
+		input {
+            font-size: 1.5rem;
+			padding: 10px;
+			outline: none;
+		}
+    </style>
+</head>
+
+<body>
+
+	<!-- https://bountify.co/render-semi-translucent-cubes-using-webgl -->
+
+	<form>
+        <input type="text" value="[[0,0,1],[0,0,3]]" pattern="[0-9\[\],]+" required placeholder="e.g. [ [0,0,0], [3,0,0] ]">
+    </form>
+
+    <script src="js/ThreeCanvas.js"></script>
+    <script src="js/Cube.js"></script>
+    <script src="js/Plane.js"></script>
+    <script>
+		const form = document.querySelector("form");
+		const input = document.querySelector("input[type='text']");
+        let transparency = 0.4;
+        let container, interval, camera, scene, renderer,
+            projector, plane, cube, linesMaterial,
+            color = 0,
+            colors = [0xDF1F1F, 0xDFAF1F, 0x80DF1F, 0x1FDF50, 0x1FDFDF, 0x1F4FDF, 0x7F1FDF, 0xDF1FAF, 0xEFEFEF, 0x303030],
+            ray, objectHovered,
+            mouse3D, isMouseDown = false,
+            onMouseDownPosition,
+            radious = 1600,
+            theta = 45,
+            isFocus = true,
+            onMouseDownTheta = 45,
+            phi = 60,
+            onMouseDownPhi = 60;
+
+        function init() {
+
+            container = document.createElement('div');
+            document.body.appendChild(container);
+
+            var info = document.createElement('div');
+            info.style.position = 'absolute';
+            info.style.top = '5px';
+            info.style.width = '100%';
+            info.style.textAlign = 'center';
+            info.innerHTML = '<span style="color: #444; background-color: #fff; border-bottom: 1px solid #ddd; padding: 8px 10px; text-transform: uppercase;"><a href="javascript:clear();">clear</a></span>';
+            container.appendChild(info);
+
+            camera = new THREE.Camera(40, window.innerWidth / window.innerHeight, 1, 10000);
+            camera.position.x = radious * Math.sin(theta * Math.PI / 360) * Math.cos(phi * Math.PI / 360);
+            camera.position.y = radious * Math.sin(phi * Math.PI / 360);
+            camera.position.z = radious * Math.cos(theta * Math.PI / 360) * Math.cos(phi * Math.PI / 360);
+            camera.target.position.y = 200;
+
+            scene = new THREE.Scene();
+
+            // Grid
+
+            var geometry = new THREE.Geometry();
+            geometry.vertices.push(new THREE.Vertex(new THREE.Vector3(-500, 0, 0)));
+            geometry.vertices.push(new THREE.Vertex(new THREE.Vector3(500, 0, 0)));
+
+            linesMaterial = new THREE.LineColorMaterial(0x000000, 0.2);
+
+            for (var i = 0; i <= 20; i++) {
+
+                var line = new THREE.Line(geometry, linesMaterial);
+                line.position.z = (i * 50) - 500;
+                scene.addObject(line);
+
+                var line = new THREE.Line(geometry, linesMaterial);
+                line.position.x = (i * 50) - 500;
+                line.rotation.y = 90 * Math.PI / 180;
+                scene.addObject(line);
+
+            }
+
+            projector = new THREE.Projector();
+
+            plane = new THREE.Mesh(new Plane(1000, 1000));
+            plane.rotation.x = -90 * Math.PI / 180;
+            scene.addObject(plane);
+
+            cube = new Cube(50, 50, 50);
+
+            ray = new THREE.Ray(camera.position, null);
+
+            onMouseDownPosition = new THREE.Vector2();
+
+            // Lights
+
+            var ambientLight = new THREE.AmbientLight(0x404040);
+            scene.addLight(ambientLight);
+
+            var directionalLight = new THREE.DirectionalLight(0xffffff);
+            directionalLight.position.x = 1;
+            directionalLight.position.y = 1;
+            directionalLight.position.z = 0.75;
+            directionalLight.position.normalize();
+            scene.addLight(directionalLight);
+
+            var directionalLight = new THREE.DirectionalLight(0x808080);
+            directionalLight.position.x = -1;
+            directionalLight.position.y = 1;
+            directionalLight.position.z = -0.75;
+            directionalLight.position.normalize();
+            scene.addLight(directionalLight);
+
+            renderer = new THREE.CanvasRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+            container.appendChild(renderer.domElement);
+            document.addEventListener('mousemove', onDocumentMouseMove, false);
+            document.addEventListener('mousedown', onDocumentMouseDown, false);
+            document.addEventListener('mouseup', onDocumentMouseUp, false);
+
+            document.addEventListener('mousewheel', onDocumentMouseWheel, false);
+
+            if (window.location.hash) {
+
+                buildFromHash();
+
+            }
+
+        }
+
+        function onDocumentMouseDown(event) {
+
+            // event.preventDefault();
+
+            isMouseDown = true;
+
+            onMouseDownTheta = theta;
+            onMouseDownPhi = phi;
+            onMouseDownPosition.x = event.clientX;
+            onMouseDownPosition.y = event.clientY;
+
+        }
+
+        function onDocumentMouseMove(event) {
+
+            if (isMouseDown && !isFocus ) {
+
+                event.preventDefault();
+
+                theta = -((event.clientX - onMouseDownPosition.x) * 0.5) + onMouseDownTheta;
+                phi = ((event.clientY - onMouseDownPosition.y) * 0.5) + onMouseDownPhi;
+
+                phi = Math.min(180, Math.max(0, phi));
+
+                camera.position.x = radious * Math.sin(theta * Math.PI / 360) * Math.cos(phi * Math.PI / 360);
+                camera.position.y = radious * Math.sin(phi * Math.PI / 360);
+                camera.position.z = radious * Math.cos(theta * Math.PI / 360) * Math.cos(phi * Math.PI / 360);
+                camera.updateMatrix();
+
+            }
+
+            render();
+
+        }
+
+        function onDocumentMouseUp(event) {
+
+            event.preventDefault();
+
+            isMouseDown = false;
+
+            onMouseDownPosition.x = event.clientX - onMouseDownPosition.x;
+            onMouseDownPosition.y = event.clientY - onMouseDownPosition.y;
+
+            if (onMouseDownPosition.length() > 5) {
+
+                return;
+
+            }
+
+            render();
+
+        }
+
+        function onDocumentMouseWheel(event) {
+
+            radious -= event.wheelDeltaY;
+
+            camera.position.x = radious * Math.sin(theta * Math.PI / 360) * Math.cos(phi * Math.PI / 360);
+            camera.position.y = radious * Math.sin(phi * Math.PI / 360);
+            camera.position.z = radious * Math.cos(theta * Math.PI / 360) * Math.cos(phi * Math.PI / 360);
+            camera.updateMatrix();
+
+            render();
+
+        }
+
+        function render() {
+
+            renderer.render(scene, camera);
+
+        }
+
+        function clear() {
+
+            var i = 0;
+
+            while (i < scene.objects.length) {
+
+                object = scene.objects[i];
+
+                if (object instanceof THREE.Mesh && object !== plane) {
+
+                    scene.removeObject(object);
+                    continue;
+                }
+
+                i++;
+            }
+
+            render();
+
+        }
+
+		function drawVoxel( x, y, z ){
+
+			var voxel = new THREE.Mesh(cube, new THREE.MeshColorFillMaterial(colors[color], transparency ));
+			voxel.position.x = x;
+			voxel.position.y = y;
+			voxel.position.z = z;
+			voxel.overdraw = true;
+			scene.addObject(voxel);
+			render();
+
+		}
+
+		function drawVoxelFromArray( x, y, z ){
+
+			if ( x > 19 || y > 19 || z > 19 ){
+				throw Error("Out of bound");
+			}
+			x = ( x * 50 ) - 475;
+			y = ( y * 50 ) + 25;
+			z = ( z * 50 ) - 475;
+			drawVoxel( x, y, z );
+
+		}
+
+        function handleForm( input ) {
+
+            try {
+
+    			const coords = JSON.parse( input );
+                coords.forEach( xyz => {
+                    const [ x, y, z ] = xyz;
+                    drawVoxelFromArray( x, y, z );
+                });
+
+            } catch(e){
+
+                throw Error("Invalid JSON input");
+
+            }
+
+        }
+
+        form.addEventListener('submit', e => {
+            e.preventDefault();
+            handleForm( input.value );
+			form.reset();
+        });
+
+        input.addEventListener("focus", e =>{
+            isFocus = true;
+        });
+        input.addEventListener("blur", e =>{
+            isFocus = false;
+        });
+
+        init();
+        render();
+		input.focus();
+
+    </script>
+
+</body>
+
+</html>
